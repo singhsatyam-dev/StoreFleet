@@ -26,7 +26,11 @@ export const createNewUser = async (req, res, next) => {
     await sendWelcomeEmail(newUser);
   } catch (err) {
     //  handle error for duplicate email
-    return next(new ErrorHandler(400, err));
+    if (err.code === 11000) {
+      return next(new ErrorHandler(400, "Email already registered"));
+    }
+
+    return next(new ErrorHandler(400, err.message || "Something went wrong"));
   }
 };
 
@@ -39,7 +43,7 @@ export const userLogin = async (req, res, next) => {
     const user = await findUserRepo({ email }, true);
     if (!user) {
       return next(
-        new ErrorHandler(401, "user not found! register yourself now!!")
+        new ErrorHandler(401, "user not found! register yourself now!!"),
       );
     }
     const passwordMatch = await user.comparePassword(password);
@@ -94,7 +98,7 @@ export const updatePassword = async (req, res, next) => {
 
     if (!newPassword || newPassword !== confirmPassword) {
       return next(
-        new ErrorHandler(401, "mismatch new password and confirm password!")
+        new ErrorHandler(401, "mismatch new password and confirm password!"),
       );
     }
 
