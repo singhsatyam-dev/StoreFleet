@@ -68,10 +68,67 @@ export const logoutUser = async (req, res, next) => {
 
 export const forgetPassword = async (req, res, next) => {
   // Implement feature for forget password
+  try {
+    const user = await findUserRepo({ email: req.body.email });
+
+    if (!user) {
+      return next(new ErrorHandler(404, "User not found"));
+    }
+
+    const resetToken = await user.getResetPasswordToken();
+
+    await user.save({ validateBeforeSave: false });
+    const resetUrl = `${req.protocol}://${req.get(
+      "host",
+    )}/api/storefleet/user/password/reset/${resetToken}`;
+
+    await sendPasswordResetEmail(user, resetUrl);
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset email sent successfully",
+    });
+  } catch (error) {
+    return next(new ErrorHandler(500, error));
+  }
 };
 
 export const resetUserPassword = async (req, res, next) => {
   // Implement feature for reset password
+  try {
+    // Hash token from params
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
+
+    const user = await findUserForPasswordResetRepo(hashedToken);
+    if (!user) {
+      return next(
+        new ErrorHandler(400, "Reset token is invalid or has expired"),
+      );
+    }
+
+    const { password, confirmPassword } = req.body;
+
+    if (!password || password !== confirmPassword) {
+      return next(
+        new ErrorHandler(400, "Password and confirm password do not match"),
+      );
+    }
+
+    user.password = password;
+
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+
+    // Send new login token
+    await sendToken(user, res, 200);
+  } catch (error) {
+    return next(new ErrorHandler(500, error));
+  }
 };
 
 export const getUserDetails = async (req, res, next) => {
