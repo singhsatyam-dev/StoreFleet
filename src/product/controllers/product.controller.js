@@ -31,6 +31,40 @@ export const addNewProduct = async (req, res, next) => {
 
 export const getAllProducts = async (req, res, next) => {
   // Implement the functionality for search, filter and pagination this function.
+  try {
+    const { keyword, page = 1, limit = 10, ...filters } = req.query;
+
+    // Search functionality
+    const searchQuery = keyword
+      ? { name: { $regex: keyword, $options: "i" } }
+      : {};
+
+    // Merge search + filters
+    const queryObject = { ...searchQuery, ...filters };
+
+    // Pagination
+    const currentPage = Number(page);
+    const resultPerPage = Number(limit);
+    const skip = (currentPage - 1) * resultPerPage;
+
+    const totalProducts = await ProductModel.countDocuments(queryObject);
+
+    const products = await ProductModel.find(queryObject)
+      .limit(resultPerPage)
+      .skip(skip);
+
+    res.status(200).json({
+      success: true,
+      totalProducts,
+      currentPage,
+      resultPerPage,
+      totalPages: Math.ceil(totalProducts / resultPerPage),
+      products,
+    });
+    
+  } catch (error) {
+    return next(new ErrorHandler(400, error));
+  }
 };
 
 export const updateProduct = async (req, res, next) => {
@@ -134,8 +168,8 @@ export const deleteReview = async (req, res, next) => {
       return next(
         new ErrorHandler(
           400,
-          "pls provide productId and reviewId as query params"
-        )
+          "pls provide productId and reviewId as query params",
+        ),
       );
     }
     const product = await findProductRepo(productId);
