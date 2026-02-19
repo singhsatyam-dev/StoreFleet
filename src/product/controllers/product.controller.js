@@ -61,7 +61,6 @@ export const getAllProducts = async (req, res, next) => {
       totalPages: Math.ceil(totalProducts / resultPerPage),
       products,
     });
-    
   } catch (error) {
     return next(new ErrorHandler(400, error));
   }
@@ -176,17 +175,33 @@ export const deleteReview = async (req, res, next) => {
     if (!product) {
       return next(new ErrorHandler(400, "Product not found!"));
     }
-    const reviews = product.reviews;
 
-    const isReviewExistIndex = reviews.findIndex((rev) => {
-      return rev._id.toString() === reviewId.toString();
-    });
-    if (isReviewExistIndex < 0) {
-      return next(new ErrorHandler(400, "review doesn't exist"));
+    //find review index
+    const reviewIndex = product.reviews.findIndex(
+      (rev) =>
+        rev._id.toString() === reviewId.toString() &&
+        rev.user.toString() === req.user._id.toString(),
+    );
+
+    if (reviewIndex < 0) {
+      return next(
+        new ErrorHandler(403, "You are not authorized to delete this review"),
+      );
     }
+    //remove rating
+    product.reviews.splice(reviewIndex, 1);
 
-    const reviewToBeDeleted = reviews[isReviewExistIndex];
-    reviews.splice(isReviewExistIndex, 1);
+    //recalculate rating
+    let avgRating = 0;
+
+    if (product.reviews.length > 0) {
+      product.reviews.forEach((rev) => {
+        avgRating += rev.rating;
+      });
+      product.rating = avgRating / product.reviews.length;
+    } else {
+      product.rating = 0;
+    }
 
     await product.save({ validateBeforeSave: false });
     res.status(200).json({
